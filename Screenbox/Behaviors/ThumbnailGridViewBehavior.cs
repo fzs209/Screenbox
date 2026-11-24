@@ -32,6 +32,9 @@ internal sealed partial class ThumbnailGridViewBehavior : Behavior<GridView>
             case PlaylistViewModel playlist:
                 await playlist.LoadThumbnailAsync();
                 break;
+            case IMediaContainer container:
+                await container.Media.LoadThumbnailAsync();
+                break;
             case StorageItemViewModel storageItem:
                 await storageItem.UpdateCaptionAsync();
                 if (storageItem.Media != null)

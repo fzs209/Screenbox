@@ -44,10 +44,7 @@ public static class MessengerExtensions
             }
         }
 
-        var session = new QueueSession(media, queue)
-        {
-            Origin = origin
-        };
+        var session = new QueueSession(media, queue, origin: origin);
         messenger.Send(new SetQueueMessage(session, true));
     }
 
@@ -58,8 +55,8 @@ public static class MessengerExtensions
     {
         if (items.Count == 0) return;
 
-        var originalItems = items.ToList();
-        var shuffledItems = new List<MediaViewModel>(originalItems);
+        var originalItems = items.Select(item => new QueueItemViewModel(item, origin)).ToList();
+        var shuffledItems = new List<QueueItemViewModel>(originalItems);
         var random = new Random();
         for (int n = shuffledItems.Count - 1; n > 0; n--)
         {
@@ -70,8 +67,7 @@ public static class MessengerExtensions
         var session = new QueueSession(0, shuffledItems)
         {
             ShuffleMode = true,
-            ShuffleBackup = new ShuffleBackup(originalItems),
-            Origin = origin ?? QueueOrigin.ForLibraryQueue(shuffledItems[0])
+            ShuffleBackup = new ShuffleBackup(originalItems)
         };
         messenger.Send(new SetQueueMessage(session, true));
     }
@@ -86,15 +82,19 @@ public static class MessengerExtensions
         }
         else
         {
-            // Clone to prevent queuing duplications
-            MediaViewModel clone = new(media);
-            queue.Items.Insert(Math.Min(queue.CurrentIndex + 1, queue.Items.Count), clone);
+            queue.Items.Insert(Math.Min(queue.CurrentIndex + 1, queue.Items.Count), new QueueItemViewModel(media));
             queue.ShuffleBackup = null;
             messenger.Send(new SetQueueMessage(queue, false));
         }
     }
 
-    public static void SendPlayNext(this IMessenger messenger, IReadOnlyList<MediaViewModel> items)
+    public static void SendPlayNext(this IMessenger messenger, IReadOnlyList<MediaViewModel> items, QueueOrigin? origin = null)
+    {
+        if (items.Count == 0) return;
+        messenger.SendPlayNext(items.Select(item => new QueueItemViewModel(item, origin)).ToList());
+    }
+
+    public static void SendPlayNext(this IMessenger messenger, IReadOnlyList<QueueItemViewModel> items)
     {
         if (items.Count == 0) return;
 
@@ -102,25 +102,17 @@ public static class MessengerExtensions
         if (queue.IsEmpty)
         {
             // Queue all items and play the first one
-            var updatedQueue = new QueueSession(0, items)
-            {
-                Origin = items.Count > 1
-                    ? QueueOrigin.ForMediaCollection(items[0].Name)
-                    : QueueOrigin.ForSingleMedia(items[0])
-            };
+            var updatedQueue = new QueueSession(0, items);
             messenger.Send(new SetQueueMessage(updatedQueue, true));
         }
         else
         {
-            // Clone all items to prevent queuing duplications
-            List<MediaViewModel> clones = items.Select(item => new MediaViewModel(item)).ToList();
-
             int insertIndex = Math.Min(queue.CurrentIndex + 1, queue.Items.Count);
 
             // Insert items in order at the insertion point
-            for (int i = 0; i < clones.Count; i++)
+            for (int i = 0; i < items.Count; i++)
             {
-                queue.Items.Insert(insertIndex + i, clones[i]);
+                queue.Items.Insert(insertIndex + i, items[i]);
             }
 
             queue.ShuffleBackup = null;
@@ -138,15 +130,19 @@ public static class MessengerExtensions
         }
         else
         {
-            // Clone to prevent queuing duplications
-            MediaViewModel clone = new(media);
-            queue.Items.Add(clone);
+            queue.Items.Add(new QueueItemViewModel(media));
             queue.ShuffleBackup = null;
             messenger.Send(new SetQueueMessage(queue, false));
         }
     }
 
-    public static void SendAddToQueue(this IMessenger messenger, IReadOnlyList<MediaViewModel> items)
+    public static void SendAddToQueue(this IMessenger messenger, IReadOnlyList<MediaViewModel> items, QueueOrigin? origin = null)
+    {
+        if (items.Count == 0) return;
+        messenger.SendAddToQueue(items.Select(item => new QueueItemViewModel(item, origin)).ToList());
+    }
+
+    public static void SendAddToQueue(this IMessenger messenger, IReadOnlyList<QueueItemViewModel> items)
     {
         if (items.Count == 0) return;
 
@@ -154,23 +150,15 @@ public static class MessengerExtensions
         if (queue.IsEmpty)
         {
             // Queue all items and play the first one
-            var updatedQueue = new QueueSession(0, items)
-            {
-                Origin = items.Count > 1
-                    ? QueueOrigin.ForMediaCollection(items[0].Name)
-                    : QueueOrigin.ForSingleMedia(items[0])
-            };
+            var updatedQueue = new QueueSession(0, items);
             messenger.Send(new SetQueueMessage(updatedQueue, true));
         }
         else
         {
-            // Clone all items to prevent queuing duplications
-            var clones = items.Select(item => new MediaViewModel(item)).ToList();
-
             // Add all items to the end of the queue
-            foreach (MediaViewModel clone in clones)
+            foreach (QueueItemViewModel item in items)
             {
-                queue.Items.Add(clone);
+                queue.Items.Add(item);
             }
 
             queue.ShuffleBackup = null;
@@ -246,7 +234,7 @@ public static class MessengerExtensions
                     if (updatedQueue.Items.Count > 1 && !cts.Token.IsCancellationRequested)
                     {
                         QueueSession currentQueue = messenger.Send(new QueueRequestMessage());
-                        if (currentQueue.Items.Count == 1 && currentQueue.CurrentItem == queue.CurrentItem)
+                        if (currentQueue.Items.Count == 1 && currentQueue.CurrentItem?.Media == queue.CurrentItem?.Media)
                         {
                             messenger.Send(new SetQueueMessage(updatedQueue, shouldPlay: false));
                         }

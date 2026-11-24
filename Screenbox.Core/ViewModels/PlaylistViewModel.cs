@@ -26,6 +26,7 @@ using Windows.UI.Xaml.Media.Imaging;
 namespace Screenbox.Core.ViewModels;
 
 public sealed partial class PlaylistViewModel : ObservableRecipient,
+    IRecentItem,
     IRecipient<QueuePlaybackStateChangedMessage>
 {
     private const int ThumbnailGridColumns = 2;
@@ -34,7 +35,7 @@ public sealed partial class PlaylistViewModel : ObservableRecipient,
     private const int ThumbnailCellSize = ThumbnailCollageSize / ThumbnailGridColumns;
     private const int BytesPerPixel = 4;
 
-    public ObservableCollection<MediaViewModel> Items { get; } = new();
+    public ObservableCollection<PlaylistItemViewModel> Items { get; } = new();
 
     public double ItemsCount => Items.Count;    // For binding
 
@@ -46,7 +47,7 @@ public sealed partial class PlaylistViewModel : ObservableRecipient,
 
     public string Id => _id.ToString();
 
-    private bool HasItems => Items.Count > 0;
+    public bool HasItems => Items.Count > 0;
 
     private Guid _id = Guid.NewGuid();
 
@@ -85,18 +86,16 @@ public sealed partial class PlaylistViewModel : ObservableRecipient,
         Items.CollectionChanged += Items_CollectionChanged;
 
         Messenger.Register<QueuePlaybackStateChangedMessage>(this);
-
-        var request = new QueuePlaybackStateRequestMessage();
-        Messenger.Send(request);
-        if (request.HasReceivedResponse)
-        {
-            UpdatePlaybackState(request.Response);
-        }
+        RefreshPlaybackState();
     }
 
     private void Items_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         OnPropertyChanged(nameof(ItemsCount));
+        OnPropertyChanged(nameof(HasItems));
+        PlayCommand.NotifyCanExecuteChanged();
+        PlayNextCommand.NotifyCanExecuteChanged();
+        AddToQueueCommand.NotifyCanExecuteChanged();
 
         if (_isLoading)
             return;
@@ -112,10 +111,6 @@ public sealed partial class PlaylistViewModel : ObservableRecipient,
             {
                 _logger.LogError(ex, "Failed to persist playlist '{PlaylistId}'.", Id);
             }
-
-            PlayCommand.NotifyCanExecuteChanged();
-            PlayNextCommand.NotifyCanExecuteChanged();
-            AddToQueueCommand.NotifyCanExecuteChanged();
         }, TimeSpan.FromMilliseconds(50));
 
         // The thumbnail collage only shows the first few items, so ignore changes that can't affect it.
@@ -136,10 +131,17 @@ public sealed partial class PlaylistViewModel : ObservableRecipient,
 
     public QueueSession ToQueueSession()
     {
-        return new QueueSession(0, Items)
-        {
-            Origin = QueueOrigin.ForPlaylist(this)
-        };
+        return new QueueSession(0, Items.Select(item => item.Media).ToList(), origin: QueueOrigin.ForPlaylist(this));
+    }
+
+    /// <summary>
+    /// Populates placeholder identity and display metadata without modifying <see cref="Items"/> or triggering persistence.
+    /// </summary>
+    public void LoadPlaceholder(string id, string displayName)
+    {
+        if (!Guid.TryParse(id, out _id)) return;
+        Name = displayName;
+        RefreshPlaybackState();
     }
 
     public void Load(PlaylistRecordDto persistentPlaylist)
@@ -150,13 +152,7 @@ public sealed partial class PlaylistViewModel : ObservableRecipient,
         _isLoading = true;
         Items.Clear();
 
-        var request = new QueuePlaybackStateRequestMessage();
-        Messenger.Send(request);
-        if (request.HasReceivedResponse)
-        {
-            UpdatePlaybackState(request.Response);
-        }
-        var itemSet = new HashSet<MediaViewModel>(persistentPlaylist.Items.Count);
+        RefreshPlaybackState();
 
         var albumFactory = new AlbumViewModelFactory();
         var artistFactory = new ArtistViewModelFactory();
@@ -166,7 +162,7 @@ public sealed partial class PlaylistViewModel : ObservableRecipient,
             try
             {
                 var vm = ToMediaViewModel(item, albumFactory, artistFactory);
-                Items.Add(itemSet.Add(vm) ? vm : new MediaViewModel(vm));
+                Items.Add(new PlaylistItemViewModel(vm));
             }
             catch { }
         }
@@ -207,6 +203,16 @@ public sealed partial class PlaylistViewModel : ObservableRecipient,
         await _playlistService.SavePlaylistAsync(persistentPlaylist);
     }
 
+    private void RefreshPlaybackState()
+    {
+        var request = new QueuePlaybackStateRequestMessage();
+        Messenger.Send(request);
+        if (request.HasReceivedResponse)
+        {
+            UpdatePlaybackState(request.Response);
+        }
+    }
+
     public async Task RenameAsync(string newDisplayName)
     {
         Name = newDisplayName;
@@ -242,13 +248,13 @@ public sealed partial class PlaylistViewModel : ObservableRecipient,
     [RelayCommand(CanExecute = nameof(HasItems))]
     private void PlayNext()
     {
-        Messenger.SendPlayNext(Items);
+        Messenger.SendPlayNext(Items.Select(item => item.Media).ToList(), QueueOrigin.ForPlaylist(this));
     }
 
     [RelayCommand(CanExecute = nameof(HasItems))]
     private void AddToQueue()
     {
-        Messenger.SendAddToQueue(Items);
+        Messenger.SendAddToQueue(Items.Select(item => item.Media).ToList(), QueueOrigin.ForPlaylist(this));
     }
 
     [RelayCommand]
@@ -257,7 +263,7 @@ public sealed partial class PlaylistViewModel : ObservableRecipient,
         if (items.Count == 0) return;
         foreach (var item in items)
         {
-            Items.Add(Items.Contains(item) ? new MediaViewModel(item) : item);
+            Items.Add(new PlaylistItemViewModel(item));
         }
 
         //await SaveAsync();
@@ -270,13 +276,14 @@ public sealed partial class PlaylistViewModel : ObservableRecipient,
 
         foreach (var item in items)
         {
+            var entry = new PlaylistItemViewModel(item);
             if (insertIndex < 0 || insertIndex >= Items.Count)
             {
-                Items.Add(Items.Contains(item) ? new MediaViewModel(item) : item);
+                Items.Add(entry);
             }
             else
             {
-                Items.Insert(insertIndex, Items.Contains(item) ? new MediaViewModel(item) : item);
+                Items.Insert(insertIndex, entry);
                 insertIndex++;
             }
         }
@@ -328,7 +335,7 @@ public sealed partial class PlaylistViewModel : ObservableRecipient,
 
     private async Task<byte[]?> BuildThumbnailCollageAsync(CancellationToken cancellationToken)
     {
-        MediaViewModel[] sources = Items.Take(ThumbnailCellCount).ToArray();
+        MediaViewModel[] sources = Items.Take(ThumbnailCellCount).Select(item => item.Media).ToArray();
 
         byte[]?[] cells = await Task.WhenAll(
             sources.Select(item => DecodeThumbnailCellAsync(item, ThumbnailCellSize, cancellationToken)));
@@ -392,7 +399,7 @@ public sealed partial class PlaylistViewModel : ObservableRecipient,
             Id = _id.ToString(),
             DisplayName = Name,
             LastUpdated = LastUpdated,
-            Items = Items.Select(RawMediaRecordDto.FromMediaViewModel).ToList()
+            Items = Items.Select(item => RawMediaRecordDto.FromMediaViewModel(item.Media)).ToList()
         };
     }
 
