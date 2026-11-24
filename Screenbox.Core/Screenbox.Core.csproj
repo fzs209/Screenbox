@@ -21,4 +21,8 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="11.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Screenbox.Core.Tests" />
+  </ItemGroup>
 </Project>

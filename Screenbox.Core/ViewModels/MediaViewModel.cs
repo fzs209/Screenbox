@@ -216,24 +216,24 @@ public sealed partial class MediaViewModel : ObservableRecipient, IMediaPlayback
         }
     }
 
-    public Task<IRandomAccessStream?> GetThumbnailSourceAsync()
+    public Task<IRandomAccessStream?> GetThumbnailSourceAsync(uint requestedSize = 1280)
     {
         return Source is IFileMediaSource fileSource && fileSource.StorageFile is { } file
-            ? GetThumbnailSourceAsync(file)
-            : GetThumbnailSourceLazyAsync();
+            ? GetThumbnailSourceAsync(file, requestedSize)
+            : GetThumbnailSourceLazyAsync(requestedSize);
     }
 
-    private async Task<IRandomAccessStream?> GetThumbnailSourceLazyAsync()
+    private async Task<IRandomAccessStream?> GetThumbnailSourceLazyAsync(uint requestedSize)
     {
         if (Source is IFileMediaSource fileSource && await fileSource.GetStorageFileAsync() is { } file)
         {
-            return await GetThumbnailSourceAsync(file);
+            return await GetThumbnailSourceAsync(file, requestedSize);
         }
 
         return null;
     }
 
-    private static async Task<IRandomAccessStream?> GetThumbnailSourceAsync(StorageFile file)
+    private static async Task<IRandomAccessStream?> GetThumbnailSourceAsync(StorageFile file, uint requestedSize = 1280)
     {
         if (!file.IsAvailable)
             return null;
@@ -243,11 +243,13 @@ public sealed partial class MediaViewModel : ObservableRecipient, IMediaPlayback
             // Use SingleItem mode to retrieve embedded album art with original aspect ratio.
             // https://learn.microsoft.com/windows/apps/develop/files/thumbnails
             StorageItemThumbnail? source =
-                await file.GetThumbnailAsync(ThumbnailMode.SingleItem, requestedSize: 1280, ThumbnailOptions.UseCurrentScale);
+                await file.GetThumbnailAsync(ThumbnailMode.SingleItem, requestedSize: requestedSize, ThumbnailOptions.UseCurrentScale);
             if (source is { Type: ThumbnailType.Image })
             {
                 return source;
             }
+
+            source?.Dispose();
         }
         catch (Exception)
         {
