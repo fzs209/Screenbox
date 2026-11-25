@@ -95,14 +95,7 @@ sealed partial class App : Application
             // Flush the event immediately
             SentrySdk.FlushAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
 
-            if (ex is VLCException { Message: "Could not create Direct3D11 device : No compatible adapter found." })
-            {
-                WeakReferenceMessenger.Default.Send(new CriticalErrorMessage(Strings.Resources.CriticalErrorDirect3D11NotAvailable));
-            }
-            else
-            {
-                throw;
-            }
+            throw;
         }
     }
 
