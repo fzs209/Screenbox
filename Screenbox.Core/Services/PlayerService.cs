@@ -1,220 +1,99 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using LibVLCSharp.Shared;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Screenbox.Core.MediaSources;
 using Screenbox.Core.Playback;
-using Windows.ApplicationModel.DataTransfer;
+using Windows.Media.Core;
 using Windows.Storage;
-using Windows.Storage.AccessCache;
+using IMediaSource = Screenbox.Core.MediaSources.IMediaSource;
 
 namespace Screenbox.Core.Services;
 
 public sealed partial class PlayerService : IPlayerService
 {
-    private readonly IVlcDialogService _vlcDialogService;
-    private readonly IMediaSourceFactory _mediaSourceFactory;
     private readonly ILogger<PlayerService> _logger;
-    private readonly ILogger _vlcLogger;
-    private readonly bool _useFal;
-    private readonly Dictionary<string, int> _tokenReferences = new();
 
-    public PlayerService(
-        IVlcDialogService vlcDialogService,
-        IMediaSourceFactory mediaSourceFactory,
-        ILogger<PlayerService> logger,
-        ILogger<LibVLC> vlcLogger)
+    public PlayerService(ILogger<PlayerService> logger)
     {
-        _vlcDialogService = vlcDialogService;
-        _mediaSourceFactory = mediaSourceFactory;
         _logger = logger;
-        _vlcLogger = vlcLogger;
-
-        // FutureAccessList is preferred because it can handle network StorageFiles
-        // If FutureAccessList is somehow unavailable, SharedStorageAccessManager will be the fallback
-        _useFal = true;
-
-        try
-        {
-            // Clear FA periodically because of 1000 items limit 
-            // Delete any entries with "media" metadata to avoid hitting the limit with stale entries
-            var tokensToRemove = StorageApplicationPermissions.FutureAccessList.Entries
-                .Where(entry => entry.Metadata == "media")
-                .Select(entry => entry.Token)
-                .ToList();
-            foreach (var token in tokensToRemove)
-            {
-                StorageApplicationPermissions.FutureAccessList.Remove(token);
-            }
-        }
-        catch (Exception)   // FileNotFoundException
-        {
-            // FutureAccessList is not available
-            _useFal = false;
-        }
     }
 
     public IMediaPlayer Initialize(string[] swapChainOptions)
     {
-        LibVLC lib = InitializeLibVlc(swapChainOptions);
-        VlcMediaPlayer mediaPlayer = new(lib);
-        return mediaPlayer;
+        // The swap-chain options belonged to the previous backend's video
+        // surface. The parameter is kept so callers stay unchanged; the
+        // Media Foundation player needs no such options.
+        _ = swapChainOptions;
+        return new MfMediaPlayer();
     }
 
     public IPlaybackItem CreatePlaybackItem(IMediaPlayer player, IMediaSource source, params string[] options)
     {
-        if (player is not VlcMediaPlayer vlcMediaPlayer)
-            throw new NotSupportedException("Only VlcMediaPlayer is supported");
-        Media media = CreateMedia(vlcMediaPlayer, source, options);
-        return new VlcPlaybackItem(source, media, DisposeMedia, _mediaSourceFactory);
+        if (player is not MfMediaPlayer)
+            throw new NotSupportedException("Only MfMediaPlayer is supported");
+
+        // Per-file playback options were command-line options for the
+        // previous backend. Media Foundation has no equivalent, so the
+        // stored options are ignored here. See MF-NOTES.md.
+        _ = options;
+
+        MediaSource mediaSource = CreateMediaSource(source);
+        return new MfPlaybackItem(source, mediaSource);
     }
 
     public void DisposePlayer(IMediaPlayer player)
     {
-        if (player is VlcMediaPlayer vlcMediaPlayer)
+        if (player is MfMediaPlayer mfPlayer)
         {
-            vlcMediaPlayer.VlcPlayer.Dispose();
-            vlcMediaPlayer.LibVlc.Dispose();
+            mfPlayer.Close();
         }
     }
 
-    private Media CreateMedia(VlcMediaPlayer player, IMediaSource source, params string[] options)
+    private MediaSource CreateMediaSource(IMediaSource source)
     {
         return source switch
         {
-            IFileMediaSource fileSource when fileSource.StorageFile is not null =>
-                CreateMedia(player, fileSource.StorageFile, options),
-            IFileMediaSource fileSource =>
-                CreateMedia(player, fileSource.Path, options),
-            IUriMediaSource uriSource =>
-                CreateMedia(player, uriSource.Uri, options),
+            IFileMediaSource fileSource => CreateMediaSource(fileSource),
+            IUriMediaSource uriSource => MediaSource.CreateFromUri(uriSource.Uri),
             _ => throw new ArgumentOutOfRangeException(nameof(source), $"Unsupported media source type: {source.GetType().Name}")
         };
     }
 
-    private Media CreateMedia(VlcMediaPlayer player, string str, params string[] options)
+    private MediaSource CreateMediaSource(IFileMediaSource fileSource)
     {
-        if (Uri.TryCreate(str, UriKind.Absolute, out var uri))
+        StorageFile? file = fileSource.StorageFile ?? TryResolveStorageFile(fileSource);
+        if (file != null)
         {
-            return CreateMedia(player, uri, options);
+            return MediaSource.CreateFromStorageFile(file);
         }
 
-        return new Media(player.LibVlc, str, FromType.FromPath, options);
-    }
-
-    [DynamicWindowsRuntimeCast(typeof(StorageFile))]
-    private Media CreateMedia(VlcMediaPlayer player, IStorageFile file, params string[] options)
-    {
-        // NOTE: There have been reports of network locations not working when using the URI approach.
-        // Optimization is disable until we can confirm that the issue is resolved in newer versions of LibVLC and/or Windows.
-        if (file is StorageFile storageFile
-            && storageFile.Provider.Id.Equals("network", StringComparison.OrdinalIgnoreCase)
-            && !string.IsNullOrEmpty(storageFile.Path)
-            && !_useFal
-            && Uri.TryCreate(storageFile.Path, UriKind.Absolute, out var uri))
+        if (Uri.TryCreate(fileSource.Path, UriKind.Absolute, out Uri? uri))
         {
-            // Optimization for network files. Avoid having to deal with WinRT quirks.
-            return CreateMedia(player, uri, options);
+            return MediaSource.CreateFromUri(uri);
         }
 
-        string token = IncrementRefCount(file);
-        string mrl = "winrt://" + token;
-        return new Media(player.LibVlc, mrl, FromType.FromLocation, options);
+        throw new ArgumentOutOfRangeException(nameof(fileSource), $"Unsupported file path: {fileSource.Path}");
     }
 
-    private Media CreateMedia(VlcMediaPlayer player, Uri uri, params string[] options)
+    private StorageFile? TryResolveStorageFile(IFileMediaSource fileSource)
     {
-        return new Media(player.LibVlc, uri, options);
-    }
-
-    private void DisposeMedia(Media media)
-    {
-        string mrl = media.Mrl;
-        if (mrl.StartsWith("winrt://"))
+        // Playback items are created synchronously, but resolving a file
+        // from its access token or path is asynchronous. Resolve on a
+        // background thread so the wait below cannot deadlock the caller,
+        // and fall back to the file path if resolution does not finish.
+        try
         {
-            string token = mrl.Substring(8);
-            try
+            Task<StorageFile?> resolveTask = Task.Run(() => fileSource.GetStorageFileAsync());
+            if (resolveTask.Wait(TimeSpan.FromSeconds(5)))
             {
-                DecrementRefCount(token);
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Failed to release a playback access token.");
+                return resolveTask.Result;
             }
         }
-
-        media.Dispose();
-    }
-
-    private string IncrementRefCount(IStorageFile file)
-    {
-        string token = _useFal
-            ? StorageApplicationPermissions.FutureAccessList.Add(file, "media")
-            : SharedStorageAccessManager.AddFile(file);
-
-        lock (_tokenReferences)
+        catch (Exception ex)
         {
-            if (_tokenReferences.TryGetValue(token, out int refCount))
-                _tokenReferences[token] = refCount + 1;
-            else
-                _tokenReferences[token] = 1;
+            _logger.LogWarning(ex, "Failed to resolve a storage file for playback.");
         }
 
-        return token;
+        return null;
     }
-
-    private void DecrementRefCount(string token)
-    {
-        lock (_tokenReferences)
-        {
-            if (_tokenReferences.TryGetValue(token, out int refCount) && refCount > 1)
-                _tokenReferences[token] = refCount - 1;
-            else
-            {
-                _tokenReferences.Remove(token);
-
-                if (_useFal)
-                {
-                    StorageApplicationPermissions.FutureAccessList.Remove(token);
-                }
-                else
-                {
-                    SharedStorageAccessManager.RemoveFile(token);
-                }
-            }
-        }
-    }
-
-    private LibVLC InitializeLibVlc(string[] swapChainOptions)
-    {
-        List<string> options = new(swapChainOptions.Length + 4)
-        {
-#if DEBUG
-            "--verbose=3",
-#else
-            "--verbose=0",
-#endif
-            "--aout=winstore",
-            //"--sout-chromecast-conversion-quality=0",
-            "--no-osd"
-        };
-        options.AddRange(swapChainOptions);
-#if DEBUG
-        LibVLC libVlc = new(true, false, options.ToArray());
-#else
-        LibVLC libVlc = new(false, false, options.ToArray());
-#endif
-        libVlc.Log += OnLibVlcLog;
-        _vlcDialogService.SetVlcDialogHandlers(libVlc);
-        return libVlc;
-    }
-
-    private void OnLibVlcLog(object? sender, LogEventArgs e)
-    {
-        LogVlcMessage(_vlcLogger, e.Module ?? "", e.Level, e.Message);
-    }
-
-    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{Module}: {VlcLogLevel}: {Message}")]
-    private static partial void LogVlcMessage(ILogger logger, string module, LibVLCSharp.Shared.LogLevel vlcLogLevel, string message);
 }

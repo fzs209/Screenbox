@@ -5,7 +5,6 @@ using System.Security;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Messaging;
 using CommunityToolkit.WinUI.Helpers;
-using LibVLCSharp.Shared;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Screenbox.Core;
@@ -146,7 +145,6 @@ sealed partial class App : Application
         });
 
         // Services
-        services.AddSingleton<IVlcDialogService, VlcDialogService>();
         services.AddSingleton<INavigationService, NavigationService>(_ => new NavigationService(
             new KeyValuePair<Type, Type>(typeof(HomePageViewModel), typeof(HomePage)),
             new KeyValuePair<Type, Type>(typeof(PlaylistsPageViewModel), typeof(PlaylistsPage)),
@@ -244,7 +242,6 @@ sealed partial class App : Application
             e.PrelaunchActivated, e.PreviousExecutionState);
 
         Frame rootFrame = InitRootFrame();
-        LibVLCSharp.Shared.Core.Initialize();
         _ = StartupInitAsync();
 
         if (e.PrelaunchActivated) return;
