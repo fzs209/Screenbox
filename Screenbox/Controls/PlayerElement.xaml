@@ -43,7 +43,6 @@
             FlowDirection="LeftToRight"
             IsHitTestVisible="False"
             SizeChanged="MediaPlayerElement_OnSizeChanged"
-            Source="{x:Bind ViewModel.SystemPlayer, Mode=OneWay}"
             Stretch="Uniform" />
     </Grid>
 </UserControl>
