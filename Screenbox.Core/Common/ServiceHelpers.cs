@@ -89,6 +89,6 @@ public static class ServiceHelpers
         services.AddSingleton<IQueueService, QueueService>();
         services.AddSingleton<IPlaylistService, PlaylistService>();
         services.AddSingleton<ISourceMetadataService, StorageMetadataService>();
-        services.AddSingleton<IPlaybackMetadataService, VlcMetadataService>();
+        services.AddSingleton<IPlaybackMetadataService, MfMetadataService>();
     }
 }

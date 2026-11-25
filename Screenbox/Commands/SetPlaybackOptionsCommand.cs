@@ -2,7 +2,6 @@ using System;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
-using Screenbox.Core.Helpers;
 using Screenbox.Core.Messages;
 using Screenbox.Core.ViewModels;
 using Screenbox.Dialogs;
@@ -33,7 +32,9 @@ internal sealed partial class SetPlaybackOptionsCommand : IRelayCommand
         else
         {
             if (TryGetMedia(parameter) is not { } media) return;
-            SetOptionsDialog dialog = new(VlcArgumentHelper.FormatArguments(media.Options));
+            // Per-file options are stored but ignored by the Media
+            // Foundation backend. See MF-NOTES.md.
+            SetOptionsDialog dialog = new(string.Join(' ', media.Options));
             ContentDialogResult result = await dialog.ShowAsync();
             if (result == ContentDialogResult.None) return;
             WeakReferenceMessenger.Default.Send(new UpdateMediaOptionsMessage(media, dialog.Options));

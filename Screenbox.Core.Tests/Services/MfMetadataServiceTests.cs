@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using LibVLCSharp.Shared;
 using Microsoft.Extensions.Logging.Abstractions;
 using Screenbox.Core.MediaSources;
 using Screenbox.Core.Playback;
@@ -14,7 +13,7 @@ using VideoTrack = Screenbox.Core.Playback.VideoTrack;
 
 namespace Screenbox.Core.Tests.Services;
 
-public partial class VlcMetadataServiceTests
+public partial class MfMetadataServiceTests
 {
     private sealed partial class DummyPlaybackItem : IPlaybackItem
     {
@@ -31,19 +30,17 @@ public partial class VlcMetadataServiceTests
     }
 
     [Test]
-    public async Task GetMediaInfoAsync_WithNullArguments_ShouldThrowArgumentNullException()
+    public async Task GetMediaInfoAsync_WithNullArgument_ShouldThrowArgumentNullException()
     {
-        var service = new VlcMetadataService(NullLogger<VlcMetadataService>.Instance);
+        var service = new MfMetadataService(NullLogger<MfMetadataService>.Instance);
 
-        await Assert.That(async () => await service.GetMediaInfoAsync((Media)null!)).Throws<ArgumentNullException>();
-        await Assert.That(async () => await service.GetMediaInfoAsync((VlcPlaybackItem)null!)).Throws<ArgumentNullException>();
         await Assert.That(async () => await service.GetMediaInfoAsync((IPlaybackItem)null!)).Throws<ArgumentNullException>();
     }
 
     [Test]
     public async Task GetMediaInfoAsync_WithUnsupportedPlaybackItem_ThrowsNotSupportedException()
     {
-        var service = new VlcMetadataService(NullLogger<VlcMetadataService>.Instance);
+        var service = new MfMetadataService(NullLogger<MfMetadataService>.Instance);
         var dummyItem = new DummyPlaybackItem();
 
         await Assert.That(async () => await service.GetMediaInfoAsync(dummyItem)).Throws<NotSupportedException>();

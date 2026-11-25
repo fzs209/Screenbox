@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using LibVLCSharp.Shared.Structures;
 using Screenbox.Core.Models;
 using Windows.Media.Core;
 
@@ -12,40 +11,6 @@ namespace Screenbox.Core.Helpers;
 /// </summary>
 public static class ChapterHelper
 {
-    private const long MaxSupportedMilliseconds = long.MaxValue / TimeSpan.TicksPerMillisecond;
-
-    /// <summary>
-    /// Converts and sanitizes a sequence of LibVLC <see cref="ChapterDescription"/> items into a validated list of <see cref="ChapterCue"/> instances.
-    /// </summary>
-    /// <param name="vlcChapters">The raw LibVLC chapter descriptions, or <see langword="null"/>.</param>
-    /// <param name="naturalDuration">The natural duration of the media stream.</param>
-    /// <returns>A validated, chronologically sorted list of chapter cues.</returns>
-    public static List<ChapterCue> FromVlcDescriptions(IEnumerable<ChapterDescription>? vlcChapters, TimeSpan naturalDuration)
-    {
-        if (vlcChapters is null)
-        {
-            return [];
-        }
-
-        List<ChapterInfo> rawChapters = [];
-        foreach (ChapterDescription c in vlcChapters)
-        {
-            if (c.TimeOffset < 0 || c.TimeOffset > MaxSupportedMilliseconds)
-            {
-                continue;
-            }
-
-            TimeSpan startTime = TimeSpan.FromMilliseconds(c.TimeOffset);
-            TimeSpan duration = c.Duration > 0 && c.Duration <= MaxSupportedMilliseconds
-                ? TimeSpan.FromMilliseconds(c.Duration)
-                : TimeSpan.Zero;
-
-            rawChapters.Add(new ChapterInfo(startTime, duration, c.Name));
-        }
-
-        return Sanitize(rawChapters, naturalDuration);
-    }
-
     /// <summary>
     /// Sanitizes and normalizes existing chapter cues by removing out-of-bounds chapters, calculating missing durations,
     /// preventing overlaps, and sorting chronologically.

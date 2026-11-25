@@ -1,5 +1,4 @@
 using System.Threading.Tasks;
-using LibVLCSharp.Shared;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Screenbox.Core.Services;
@@ -10,11 +9,6 @@ namespace Screenbox.Core.Tests.Services;
 
 public class ServiceHelpersTests
 {
-    private sealed class DummyVlcDialogService : IVlcDialogService
-    {
-        public void SetVlcDialogHandlers(LibVLC libVlc) { }
-    }
-
     [Test]
     public async Task PopulateCoreServices_RegistersSourceAndPlaybackMetadataServices()
     {
@@ -31,7 +25,7 @@ public class ServiceHelpersTests
         await Assert.That(sourceService).IsTypeOf<StorageMetadataService>();
 
         await Assert.That(playbackService).IsNotNull();
-        await Assert.That(playbackService).IsTypeOf<VlcMetadataService>();
+        await Assert.That(playbackService).IsTypeOf<MfMetadataService>();
     }
 
     [Test]
@@ -40,7 +34,6 @@ public class ServiceHelpersTests
         ServiceCollection services = new();
         ServiceHelpers.PopulateCoreServices(services);
         services.AddLogging();
-        services.AddSingleton<IVlcDialogService, DummyVlcDialogService>();
         services.AddSingleton<ISettingsStorage>(new SettingsStorage(new PropertySet()));
 
         using ServiceProvider provider = services.BuildServiceProvider();

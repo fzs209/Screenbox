@@ -159,14 +159,9 @@ public sealed partial class SettingsPageViewModel : ObservableRecipient
 
     partial void OnGlobalArgumentsChanged(string value)
     {
-        string sanitized = VlcArgumentHelper.SanitizeArguments(value);
-        if (sanitized != value)
-        {
-            GlobalArguments = sanitized;
-            return;
-        }
-
-        PlayerSettings.GlobalArguments = sanitized;
+        // Stored for compatibility; the Media Foundation backend does not
+        // use global playback arguments. See MF-NOTES.md.
+        PlayerSettings.GlobalArguments = value;
         CheckForRelaunch();
     }
 

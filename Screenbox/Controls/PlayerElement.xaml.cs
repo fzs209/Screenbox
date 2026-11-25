@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.DependencyInjection;
 using Screenbox.Core.ViewModels;
 using Windows.UI.Input;
@@ -43,10 +44,29 @@ public sealed partial class PlayerElement : UserControl
         };
 
         _gestureRecognizer.Holding += GestureRecognizer_OnHolding;
+
+        // MediaPlayerElement.Source takes a playback source, not a player, so
+        // the system player is attached in code via SetMediaPlayer instead.
+        ViewModel.PropertyChanged += ViewModel_OnPropertyChanged;
+        ApplySystemPlayer();
+    }
+
+    private void ViewModel_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PlayerElementViewModel.SystemPlayer))
+        {
+            ApplySystemPlayer();
+        }
+    }
+
+    private void ApplySystemPlayer()
+    {
+        MfMediaPlayerElement.SetMediaPlayer(ViewModel.SystemPlayer);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        ViewModel.PropertyChanged -= ViewModel_OnPropertyChanged;
         if (_gestureRecognizer is not null)
         {
             _gestureRecognizer.CompleteGesture();
@@ -55,12 +75,12 @@ public sealed partial class PlayerElement : UserControl
         }
     }
 
-    private void VlcVideoView_OnInitialized(object sender, VideoViewInitializedEventArgs e)
+    private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        ViewModel.Initialize(e.SwapChainOptions);
+        ViewModel.Initialize(Array.Empty<string>());
     }
 
-    private void VlcVideoView_OnSizeChanged(object sender, SizeChangedEventArgs e)
+    private void MediaPlayerElement_OnSizeChanged(object sender, SizeChangedEventArgs e)
     {
         ViewModel.UpdatePlayerViewSize(e.NewSize);
     }

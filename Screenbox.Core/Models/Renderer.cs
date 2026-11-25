@@ -1,10 +1,13 @@
-using LibVLCSharp.Shared;
-
 namespace Screenbox.Core.Models;
 
+/// <summary>
+/// A network renderer that can receive cast playback. The Media Foundation
+/// backend discovers no renderers, so instances are never produced at
+/// runtime; the model is kept for the Cast UI. See MF-NOTES.md.
+/// </summary>
 public sealed partial class Renderer
 {
-    public bool IsAvailable { get; private set; }
+    public bool IsAvailable { get; }
 
     public string Name { get; }
 
@@ -16,25 +19,20 @@ public sealed partial class Renderer
 
     public bool CanRenderAudio { get; }
 
-    internal RendererItem? Target => IsAvailable ? _item : null;
-
-    private readonly RendererItem _item;
-
-    internal Renderer(RendererItem item)
+    public Renderer(
+        string name,
+        string type,
+        string? iconUri = null,
+        bool canRenderVideo = false,
+        bool canRenderAudio = false,
+        bool isAvailable = false)
     {
-        _item = item;
-        Name = item.Name;
-        Type = item.Type;
-        IconUri = item.IconUri;
-        CanRenderVideo = item.CanRenderVideo;
-        CanRenderAudio = item.CanRenderAudio;
-        IsAvailable = true;
-    }
-
-    internal void Dispose()
-    {
-        IsAvailable = false;
-        _item.Dispose();
+        Name = name;
+        Type = type;
+        IconUri = iconUri;
+        CanRenderVideo = canRenderVideo;
+        CanRenderAudio = canRenderAudio;
+        IsAvailable = isAvailable;
     }
 
     public override string ToString()

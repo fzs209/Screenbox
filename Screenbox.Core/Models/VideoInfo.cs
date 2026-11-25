@@ -15,7 +15,7 @@ public sealed class VideoInfo : IMediaProperties
     public uint Height { get; set; }
     public uint Bitrate { get; set; }
 
-    /** VLC metadata **/
+    /** Show metadata **/
     public string ShowName { get; set; } = string.Empty;
     public string Season { get; set; } = string.Empty;
     public string Episode { get; set; } = string.Empty;

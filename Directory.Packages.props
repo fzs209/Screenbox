@@ -24,13 +24,6 @@
     <!-- Globalization (ReswPlus) -->
     <PackageVersion Include="ReswPlus" Version="0.6.1" />
 
-    <!-- Media playback (LibVLC, LibVLCSharp) -->
-    <PackageVersion Include="LibVLC.UWP" Version="3.0.23-2611240812" />
-    <PackageVersion Include="LibVLCSharp.UWP" Version="3.10.2" />
-
-    <!-- Direct3D 11 interop -->
-    <PackageVersion Include="Vortice.Direct3D11" Version="3.8.3" />
-
     <!-- MVVM Toolkit -->
     <PackageVersion Include="CommunityToolkit.Diagnostics" Version="8.4.2" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />

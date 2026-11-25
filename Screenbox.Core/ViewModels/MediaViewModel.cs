@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -106,7 +107,11 @@ public sealed partial class MediaViewModel : ObservableRecipient, IMediaPlayback
 
     public void SetOptions(string options)
     {
-        string[] opts =         VlcArgumentHelper.ParseArguments(options)
+        // Playback options are stored for compatibility but are not used by
+        // the Media Foundation backend. See MF-NOTES.md. Tokenizing keeps
+        // double-quoted values with spaces as a single option, matching the
+        // previous backend's stored-options behavior.
+        string[] opts = TokenizeOptions(options)
             .Where(o => o.StartsWith(':') && o.Length > 1).ToArray();
 
         // Check if new options and existing options are the same
@@ -117,6 +122,41 @@ public sealed partial class MediaViewModel : ObservableRecipient, IMediaPlayback
 
         _options.Clear();
         _options.AddRange(opts);
+    }
+
+    private static List<string> TokenizeOptions(string raw)
+    {
+        List<string> tokens = new();
+        if (string.IsNullOrWhiteSpace(raw)) return tokens;
+
+        StringBuilder current = new();
+        bool inQuotes = false;
+        bool hasToken = false;
+        foreach (char c in raw)
+        {
+            if (c == '"')
+            {
+                inQuotes = !inQuotes;
+                hasToken = true;
+            }
+            else if (char.IsWhiteSpace(c) && !inQuotes)
+            {
+                if (hasToken)
+                {
+                    tokens.Add(current.ToString());
+                    current.Clear();
+                    hasToken = false;
+                }
+            }
+            else
+            {
+                current.Append(c);
+                hasToken = true;
+            }
+        }
+
+        if (hasToken) tokens.Add(current.ToString());
+        return tokens;
     }
 
     public void UpdateSource(StorageFile file)

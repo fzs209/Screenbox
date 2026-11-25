@@ -126,14 +126,6 @@ public class ChapterHelperTests
     }
 
     [Test]
-    public async Task FromVlcDescriptions_NullChapters_ReturnsEmpty()
-    {
-        List<ChapterCue> result = ChapterHelper.FromVlcDescriptions(null, TimeSpan.FromMinutes(10));
-
-        await Assert.That(result).IsEmpty();
-    }
-
-    [Test]
     public async Task Sanitize_ChapterCuesOverload_SanitizesAndReturnsCues()
     {
         ChapterCue[] cues =
