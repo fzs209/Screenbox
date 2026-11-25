@@ -1,5 +1,6 @@
 using Windows.Foundation.Collections;
 using Windows.Media.Core;
+using Windows.Media.Playback;
 
 namespace Screenbox.Core.Playback;
 

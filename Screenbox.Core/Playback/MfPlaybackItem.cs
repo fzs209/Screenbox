@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Screenbox.Core.MediaSources;
 using Windows.Media.Core;
+using Windows.Media.Playback;
 using Windows.Storage.Streams;
 using IMediaSource = Screenbox.Core.MediaSources.IMediaSource;
 
