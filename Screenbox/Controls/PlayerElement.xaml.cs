@@ -55,12 +55,12 @@ public sealed partial class PlayerElement : UserControl
         }
     }
 
-    private void VlcVideoView_OnInitialized(object sender, VideoViewInitializedEventArgs e)
+    private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        ViewModel.Initialize(e.SwapChainOptions);
+        ViewModel.Initialize(Array.Empty<string>());
     }
 
-    private void VlcVideoView_OnSizeChanged(object sender, SizeChangedEventArgs e)
+    private void MediaPlayerElement_OnSizeChanged(object sender, SizeChangedEventArgs e)
     {
         ViewModel.UpdatePlayerViewSize(e.NewSize);
     }

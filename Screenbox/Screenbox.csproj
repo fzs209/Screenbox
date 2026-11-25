@@ -44,7 +44,6 @@
     <PackageReference Include="CommunityToolkit.Uwp.Controls.SettingsControls" />
     <PackageReference Include="CommunityToolkit.Uwp.Converters" />
     <PackageReference Include="CommunityToolkit.Uwp.Extensions" />
-    <PackageReference Include="LibVLC.UWP" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
     <PackageReference Include="Microsoft.UI.Xaml" />
@@ -72,7 +71,6 @@
     <ProjectReference Include="..\Screenbox.Core\Screenbox.Core.csproj" />
     <ProjectReference Include="..\Screenbox.Lively\Screenbox.Lively.csproj" />
     <ProjectReference Include="..\Screenbox.UI\Screenbox.UI.csproj" />
-    <ProjectReference Include="..\Screenbox.VideoView\Screenbox.VideoView.csproj" />
   </ItemGroup>
 
 </Project>

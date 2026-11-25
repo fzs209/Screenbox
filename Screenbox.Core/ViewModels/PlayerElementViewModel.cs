@@ -1,12 +1,9 @@
 using System;
-using System.Collections.Generic;
-using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using CommunityToolkit.WinUI;
-using LibVLCSharp.Shared;
 using Microsoft.Extensions.Logging;
 using Screenbox.Core.Contexts;
 using Screenbox.Core.Enums;
@@ -39,7 +36,8 @@ public sealed partial class PlayerElementViewModel : ObservableRecipient,
 
     public event EventHandler<EventArgs>? ClearViewRequested;
 
-    public LibVLCSharp.Shared.MediaPlayer? VlcPlayer => (_playerContext.MediaPlayer as VlcMediaPlayer)?.VlcPlayer;
+    [ObservableProperty]
+    public partial Windows.Media.Playback.MediaPlayer? SystemPlayer { get; set; }
 
     private IMediaPlayer? MediaPlayer
     {
@@ -108,6 +106,7 @@ public sealed partial class PlayerElementViewModel : ObservableRecipient,
             oldPlayer.MediaFailed -= OnMediaFailed;
             oldPlayer.PlaybackItemChanged -= OnPlaybackItemChanged;
             MediaPlayer = null;
+            SystemPlayer = null;
         }
 
         // Cancel any in-progress initialization so that a stale Task cannot
@@ -119,9 +118,8 @@ public sealed partial class PlayerElementViewModel : ObservableRecipient,
         oldCts?.Dispose();
 
         // Run both the old-player disposal and new-player initialization on a
-        // background thread.  LibVLC teardown (LibVLC.Dispose) is expensive and
-        // must not block the UI thread, which would delay window messaging and
-        // prevent the app from processing the next activation in time.
+        // background thread so that window messaging is not blocked, which
+        // would delay the app from processing the next activation in time.
         Task.Run(() =>
         {
             // Always dispose the old player even if a newer init was requested —
@@ -136,49 +134,30 @@ public sealed partial class PlayerElementViewModel : ObservableRecipient,
 
             try
             {
-                var args = new List<string>();
-                if (_playerSettings.GlobalArguments.Length > 0)
-                {
-                    args.AddRange(VlcArgumentHelper.ParseArguments(_playerSettings.GlobalArguments));
-                }
+                // Global arguments and the video-upscale setting belonged to
+                // the previous backend. They stay stored but are not used;
+                // the swap-chain options are passed through only to keep
+                // the player-service signature stable.
+                IMediaPlayer player = _playerService.Initialize(swapChainOptions);
 
-                if (_playerSettings.VideoUpscale != VideoUpscaleOption.Linear)
+                if (player is not MfMediaPlayer mfMediaPlayer)
                 {
-                    args.Add($"--d3d11-upscale-mode={_playerSettings.VideoUpscale.ToString().ToLower()}");
-                }
-
-                args.AddRange(swapChainOptions);
-                IMediaPlayer player;
-                ExceptionDispatchInfo? initException = null;
-                try
-                {
-                    player = _playerService.Initialize(args.ToArray());
-                }
-                catch (VLCException e)
-                {
-                    player = _playerService.Initialize(swapChainOptions);
-                    initException = ExceptionDispatchInfo.Capture(e);  // Passable exception
-                }
-
-                if (player is not VlcMediaPlayer vlcMediaPlayer)
-                {
-                    throw new InvalidOperationException("PlayerService must return a VlcMediaPlayer instance.");
+                    throw new InvalidOperationException("PlayerService must return a MfMediaPlayer instance.");
                 }
 
                 if (ct.IsCancellationRequested)
                 {
                     // A newer Initialize() call won the race; discard this player to avoid a leak.
-                    _playerService.DisposePlayer(vlcMediaPlayer);
+                    _playerService.DisposePlayer(mfMediaPlayer);
                     return;
                 }
 
-                MediaPlayer = vlcMediaPlayer;
+                MediaPlayer = mfMediaPlayer;
                 player.PlaybackStateChanged += OnPlaybackStateChanged;
                 player.PositionChanged += OnPositionChanged;
                 player.MediaFailed += OnMediaFailed;
                 player.PlaybackItemChanged += OnPlaybackItemChanged;
-
-                initException?.Throw();
+                _dispatcherQueue.TryEnqueue(() => SystemPlayer = mfMediaPlayer.SystemPlayer);
             }
             catch (Exception ex)
             {
