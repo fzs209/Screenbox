@@ -24,7 +24,7 @@ This document provides a comprehensive overview of the Screenbox project's archi
 
 ## 📖 Overview
 
-Screenbox is a modern media player for Windows built using the Universal Windows Platform ([UWP](https://learn.microsoft.com/en-us/windows/uwp/get-started/universal-application-platform-guide)) and LibVLCSharp. The application follows the Model-View-ViewModel ([MVVM](https://learn.microsoft.com/en-us/windows/uwp/data-binding/data-binding-and-mvvm)) design pattern with dependency injection for maintainable and testable code.
+Screenbox is a modern media player for Windows built using the Universal Windows Platform ([UWP](https://learn.microsoft.com/en-us/windows/uwp/get-started/universal-application-platform-guide)) and the Windows system media pipeline (Media Foundation). The application follows the Model-View-ViewModel ([MVVM](https://learn.microsoft.com/en-us/windows/uwp/data-binding/data-binding-and-mvvm)) design pattern with dependency injection for maintainable and testable code.
 
 The architecture is built around clean separation of concerns:
 
@@ -294,28 +294,28 @@ Available coordinators:
 
 Helper classes provide focused utilities and lightweight wrappers for specific functionality:
 
-- **`RendererWatcher`**: Lightweight wrapper around VLC's RendererDiscoverer for network renderer discovery, exposing events for renderer found/lost notifications and maintaining a list of available renderers
+- **`RendererWatcher`**: Renderer discovery stub for the Media Foundation backend; the system player exposes no Chromecast discovery, so it never finds renderers (see `MF-NOTES.md`)
 - **`DisplayRequestTracker`**: Manages display sleep prevention during media playback
 
 ### Media Playback Engine
 
-The media playback system is built on [LibVLCSharp](https://code.videolan.org/videolan/LibVLCSharp) with custom abstractions for integration with the MVVM architecture:
+The media playback system is built on the Windows system media pipeline (Media Foundation, through `Windows.Media.Playback`) with custom abstractions for integration with the MVVM architecture:
 
 #### Core Playback Components
 
 - **`IMediaPlayer`**: Media player abstraction interface
 - **`IPlaybackItem`**: Playback item interface with track, chapter, and timing abstractions
-- **`VlcMediaPlayer.cs`**: VLC-based implementation of media player
-- **`VlcPlaybackItem.cs`**: VLC-backed implementation of playback item
+- **`MfMediaPlayer.cs`**: Media Foundation implementation of media player
+- **`MfPlaybackItem.cs`**: Media Foundation-backed implementation of playback item
 
 #### Track Management System
 
-- **VlcAudioTrackList.cs**: Audio track selection and switching
-- **VlcVideoTrackList.cs**: Video track and subtitle management
-- **VlcSubtitleTrackList.cs**: Subtitle track handling
-- **VlcChapterList.cs**: Chapter navigation support
+- **MfAudioTrackList.cs**: Audio track selection and switching
+- **MfVideoTrackList.cs**: Video track selection and switching
+- **MfSubtitleTrackList.cs**: Subtitle track handling, including external subtitle files
+- **MfChapterList.cs**: Chapter navigation support from chapter timed-metadata tracks
 
-The playback engine provides a clean interface for the ViewModel layer while abstracting the complexities of the underlying VLC media framework.
+The playback engine provides a clean interface for the ViewModel layer while abstracting the system playback pipeline. See `MF-NOTES.md` for the backend's gains and cuts.
 
 ### Data Models and Persistence
 
@@ -375,7 +375,7 @@ The following table summarizes the allowed dependency directions between layers:
 - **UWP (Universal Windows Platform)**: Windows application framework providing native performance and system integration
 - **.NET 10**: Cross-platform runtime for building modern applications
 - **XAML**: Declarative markup for user interface definition
-- **LibVLCSharp**: Cross-platform media playback engine with extensive codec support
+- **Windows.Media.Playback (Media Foundation)**: System media playback pipeline with hardware decoding and native HDR/Dolby Vision output
 - **CommunityToolkit.Mvvm**: MVVM framework for property change notification, messaging, and source generation
 
 ### Development and Build Tools
@@ -398,7 +398,7 @@ The following table summarizes the allowed dependency directions between layers:
 
 #### Media and Data Processing
 
-- [LibVLCSharp](https://github.com/videolan/libvlcsharp) - VLC media player integration
+- Windows.Media.Playback - System media playback pipeline (Media Foundation)
 - [TagLibSharp](https://github.com/mono/taglib-sharp) - Audio metadata reading
 - [Microsoft.Data.Sqlite](https://learn.microsoft.com/en-us/dotnet/standard/data/sqlite/) - SQLite database access for media library cache and playlist persistence
 

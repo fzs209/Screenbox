@@ -106,7 +106,10 @@ public sealed partial class MediaViewModel : ObservableRecipient, IMediaPlayback
 
     public void SetOptions(string options)
     {
-        string[] opts =         VlcArgumentHelper.ParseArguments(options)
+        // Playback options are stored for compatibility but are not used by
+        // the Media Foundation backend. See MF-NOTES.md.
+        string[] opts = options
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
             .Where(o => o.StartsWith(':') && o.Length > 1).ToArray();
 
         // Check if new options and existing options are the same

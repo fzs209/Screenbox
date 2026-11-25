@@ -8,7 +8,7 @@ namespace Screenbox.Core.Contexts;
 /// <summary>
 /// Observable state holder for media player UI presentation, transport controls, seek intervals,
 /// touch and pointer gestures, frame capture location, Lively audio visualizer, video upscaling,
-/// and LibVLC engine configuration.
+/// and stored playback-option values.
 /// </summary>
 public sealed partial class PlayerSettingsContext : SettingsContextBase<PlayerSettingsContext>
 {

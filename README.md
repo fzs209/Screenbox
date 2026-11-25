@@ -19,7 +19,7 @@
 
 Screenbox is a modern video player that cares about performance and ease of use on a wide range of device types. It features a beautiful, friendly user interface that is fast and lightweight. Screenbox is available on Windows 10 version 1903 and up, Windows 11, and Xbox consoles.
 
-Screenbox is built on top of [LibVLCSharp](https://github.com/videolan/libvlcsharp) and the Universal Windows Platform (UWP).
+Screenbox is built on the Windows system media pipeline (Media Foundation, through Windows.Media.Playback) and the Universal Windows Platform (UWP). This fork replaces the previous LibVLC backend; see [MF-NOTES.md](MF-NOTES.md) for what changed.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="/assets/images/docs/PC-HeroHomePage-Dark.png?raw=true">
