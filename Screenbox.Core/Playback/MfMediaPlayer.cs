@@ -301,7 +301,7 @@ public sealed class MfMediaPlayer : IMediaPlayer
         _player.MediaFailed += OnMediaFailed;
         _player.VolumeChanged += (s, e) => VolumeChanged?.Invoke(this, EventArgs.Empty);
         _player.IsMutedChanged += (s, e) => IsMutedChanged?.Invoke(this, EventArgs.Empty);
-        _player.PlaybackRateChanged += (s, e) =>
+        _session.PlaybackRateChanged += (s, e) =>
         {
             double newValue = _player.PlaybackRate;
             double oldValue = _playbackRate;

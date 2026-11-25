@@ -137,7 +137,6 @@ public sealed partial class MfPlaybackItem : IPlaybackItem
         VideoTracks.Detach();
         SubtitleTracks.Detach();
 
-        SystemPlaybackItem.Dispose();
         SystemMediaSource.Dispose();
         foreach (IRandomAccessStream stream in _externalSubtitleStreams)
         {
